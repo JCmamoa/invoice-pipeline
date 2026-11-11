@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Invoice Pipeline — Demo</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark">IP</span>
+        <div>
+          <h1>Invoice Pipeline</h1>
+          <p>Automatic invoice intake, strict extraction and audit trail</p>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <span class="badge badge-demo">Demo mode — no authentication</span>
+        <span id="conn" class="conn">connecting…</span>
+      </div>
+    </header>
+
+    <section class="flow" aria-label="Pipeline stages">
+      <div class="flow-step"><span>1</span> Trigger</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step"><span>2</span> Extract</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step"><span>3</span> Validate</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step"><span>4</span> Store &amp; audit</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step"><span>5</span> Notify</div>
+    </section>
+
+    <main class="layout">
+      <aside class="column">
+        <section class="card">
+          <h2>Intake</h2>
+          <p class="muted">
+            Drop a PDF invoice, or load the bundled samples. Duplicate files are
+            detected by SHA-256 and processed only once.
+          </p>
+
+          <label id="dropzone" class="dropzone" for="file-input">
+            <input id="file-input" type="file" accept="application/pdf" hidden />
+            <strong>Drop a PDF here</strong>
+            <span>or click to choose a file</span>
+          </label>
+
+          <div class="actions">
+            <button id="seed-btn" class="btn btn-primary">Load sample invoices</button>
+            <button id="reset-btn" class="btn btn-ghost">Reset demo</button>
+          </div>
+          <p id="upload-status" class="muted small"></p>
+        </section>
+
+        <section class="card">
+          <h2>Overview</h2>
+          <div id="stats" class="stats"></div>
+        </section>
+
+        <section class="card">
+          <h2>Notifications</h2>
+          <div id="notifications" class="feed"></div>
+        </section>
+      </aside>
+
+      <section class="column">
+        <section class="card card-table">
+          <div class="table-head">
+            <h2>Invoices</h2>
+            <div class="filters">
+              <select id="status-filter" class="select">
+                <option value="">All statuses</option>
+                <option value="queued">Queued</option>
+                <option value="processing">Processing</option>
+                <option value="processed">Processed</option>
+                <option value="needs_review">Needs review</option>
+                <option value="failed">Failed</option>
+              </select>
+              <button id="refresh-btn" class="btn btn-ghost">Refresh</button>
+            </div>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Supplier</th>
+                  <th>CNPJ</th>
+                  <th>Total</th>
+                  <th>Due date</th>
+                  <th>Status</th>
+                  <th>Received</th>
+                </tr>
+              </thead>
+              <tbody id="invoice-rows"></tbody>
+            </table>
+            <p id="empty-state" class="empty hidden">No invoices yet. Load the samples to start.</p>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <div id="detail-modal" class="modal hidden" role="dialog" aria-modal="true">
+      <div class="modal-backdrop" data-close></div>
+      <article class="modal-card">
+        <button class="modal-close" data-close aria-label="Close">×</button>
+        <div id="detail-content"></div>
+      </article>
+    </div>
+
+    <div id="toast" class="toast hidden"></div>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>

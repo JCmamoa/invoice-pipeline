@@ -1,0 +1,48 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+5 0 obj
+<< /Length 389 >>
+stream
+BT
+/F1 11 Tf
+16 TL
+72 750 Td
+(ACME SUPPLIES LTDA) Tj T*
+() Tj T*
+(Supplier: Acme Supplies Ltda) Tj T*
+(CNPJ: 11.222.333/0001-81) Tj T*
+(Invoice: INV-2026-0042) Tj T*
+(Issue date: 2026-11-01) Tj T*
+(Due date: 2026-12-15) Tj T*
+(Description: Industrial spare parts) Tj T*
+(Subtotal: R$ 1,000.00) Tj T*
+(Tax: R$ 234.56) Tj T*
+(Total: R$ 1,234.56) Tj T*
+(Payment terms: bank transfer) Tj T*
+ET
+endstream
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000241 00000 n 
+0000000338 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+778
+%%EOF

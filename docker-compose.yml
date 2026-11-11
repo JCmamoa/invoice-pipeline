@@ -1,0 +1,91 @@
+name: invoice-pipeline
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: invoice
+      POSTGRES_PASSWORD: invoice
+      POSTGRES_DB: invoice
+    ports:
+      - "5434:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/001_schema.sql:/docker-entrypoint-initdb.d/001_schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U invoice -d invoice"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build: .
+    environment: &app_env
+      DATABASE_URL: postgresql://invoice:invoice@postgres:5432/invoice
+      INBOX_DIR: /data/inbox
+      ARCHIVE_DIR: /data/archive
+      SAMPLE_DIR: /app/samples
+      WEB_DIR: /app/web
+      METRICS_PORT: "8001"
+      LLM_MODE: ${LLM_MODE:-mock}
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://api.openai.com/v1}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-gpt-4o-mini}
+      LLM_TIMEOUT: ${LLM_TIMEOUT:-60}
+      MIN_CONFIDENCE: ${MIN_CONFIDENCE:-0.55}
+      SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
+      TEAMS_WEBHOOK_URL: ${TEAMS_WEBHOOK_URL:-}
+      NOTIFY_LANGUAGE: ${NOTIFY_LANGUAGE:-en}
+      WORKER_POLL_SECONDS: ${WORKER_POLL_SECONDS:-2}
+      WATCHER_POLL_SECONDS: ${WATCHER_POLL_SECONDS:-3}
+      INBOX_SETTLE_SECONDS: ${INBOX_SETTLE_SECONDS:-2}
+      MAX_ATTEMPTS: ${MAX_ATTEMPTS:-3}
+      STALE_PROCESSING_SECONDS: ${STALE_PROCESSING_SECONDS:-300}
+      MAX_PDF_BYTES: ${MAX_PDF_BYTES:-15728640}
+      DEMO_MODE: ${DEMO_MODE:-true}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:8000}
+      IMAP_ENABLED: "false"
+    ports:
+      - "8000:8000"
+    volumes:
+      - data:/data
+      - ./samples:/app/samples:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  worker:
+    build: .
+    command: ["python", "-m", "invoice_pipeline.worker"]
+    environment:
+      <<: *app_env
+      IMAP_ENABLED: ${IMAP_ENABLED:-false}
+      IMAP_HOST: ${IMAP_HOST:-}
+      IMAP_PORT: ${IMAP_PORT:-993}
+      IMAP_USER: ${IMAP_USER:-}
+      IMAP_PASSWORD: ${IMAP_PASSWORD:-}
+      IMAP_FOLDER: ${IMAP_FOLDER:-INBOX}
+      IMAP_SSL: ${IMAP_SSL:-true}
+      IMAP_POLL_SECONDS: ${IMAP_POLL_SECONDS:-60}
+    ports:
+      - "8001:8001"
+    volumes:
+      - data:/data
+      - ./samples:/app/samples:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/metrics')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pgdata:
+  data:
