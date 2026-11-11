@@ -44,6 +44,11 @@ Copy `.env.example` to `.env` and edit it, or export variables before
 | `STALE_PROCESSING_SECONDS` | `300` | reaper threshold |
 | `MAX_PDF_BYTES` | `15728640` | upload limit |
 | `DEMO_MODE` | `true` | enables `/api/demo/*` |
+| `OCR_ENABLED` | `true` | OCR fallback for PDFs without a text layer |
+| `OCR_LANG` | `eng` | Tesseract language(s), e.g. `eng+por` |
+| `OCR_DPI` | `200` | render resolution for OCR |
+| `OCR_MAX_PAGES` | `5` | pages OCRed per document |
+| `OCR_MIN_CHARS` | `25` | below this OCR is considered empty |
 | `IMAP_ENABLED` | `false` | optional email ingestion |
 | `IMAP_HOST/PORT/USER/PASSWORD/FOLDER/SSL` | — | mailbox settings |
 | `IMAP_POLL_SECONDS` | `60` | mailbox polling interval |
@@ -106,12 +111,35 @@ after every attachment is enqueued. The poller reconnects on errors.
 
 ## Notifications
 
-- Slack: create an Incoming Webhook and set `SLACK_WEBHOOK_URL`.
-- Teams: set `TEAMS_WEBHOOK_URL` (legacy incoming webhook payload `{"text": ...}`).
+- Slack: create an Incoming Webhook and set `SLACK_WEBHOOK_URL`. The payload is
+  Block Kit (header, message and supplier/CNPJ/total/due fields) with a plain
+  `text` fallback.
+- Teams: set `TEAMS_WEBHOOK_URL`; the payload is a `MessageCard`.
+- If a tenant still uses an older incoming webhook, the client retries once with
+  `{"text": ...}` when the first payload is rejected with `400/413/415/422`.
 - No webhook: status `mock`, visible in the UI and in the `notifications` table.
 
 A webhook failure is recorded (`status=failed`) but never rolls back the
 invoice, because the data is already committed.
+
+## OCR fallback
+
+The image ships `tesseract-ocr` with `eng` and `por` models. When a PDF has no
+text layer:
+
+1. Up to `OCR_MAX_PAGES` pages are rendered at `OCR_DPI`.
+2. Tesseract reads them with `OCR_LANG`.
+3. If the result has at least `OCR_MIN_CHARS` characters, it goes through the
+   same extractor and validator as a digital invoice.
+4. Otherwise the invoice is `needs_review` with `no_text_layer`.
+
+The invoice records where the text came from in `text_source`: `text_layer`,
+`ocr` or `none`. Watch `invoice_ocr_total{result}` for `ocr_unavailable`,
+`ocr_failed` and `ocr_empty`.
+
+To add a language, install the matching Tesseract package in the image (for
+example `tesseract-ocr-spa`) and set `OCR_LANG=eng+spa`. OCR is CPU-bound:
+expect roughly 1-3 seconds per page.
 
 ## Observability
 
@@ -170,10 +198,28 @@ Open the invoice in the UI; `validation_errors` explains why. Common causes:
 | `missing_due_date` | the PDF does not state a due date; fix the source or add it manually |
 | `invalid_cnpj` | checksum failed; verify the supplier document |
 | `missing_total` | the total is not in the text layer |
-| `no_text_layer` | scanned PDF; needs OCR (out of scope for Phase 0) |
+| `no_text_layer` | scanned PDF; OCR is disabled, unavailable or found too little text |
 | `low_confidence` | lower `MIN_CONFIDENCE` or inspect the extraction JSON |
 
 Use **Re-process** after fixing the source or the configuration.
+
+### OCR is not finding text
+
+```bash
+docker compose exec worker tesseract --list-langs
+docker compose exec worker sh -c 'echo $OCR_LANG $OCR_ENABLED'
+curl -s localhost:8001/metrics | grep invoice_ocr
+```
+
+| Metric result | Meaning |
+|---|---|
+| `ocr_unavailable` | Tesseract binary missing in the image |
+| `ocr_failed` | Tesseract raised an error while reading a page |
+| `ocr_empty` | the scan is blank, too small or below `OCR_MIN_CHARS` |
+
+If the text is found but the fields are not, increase `OCR_DPI` (300 helps on
+small fonts) and check the extracted JSON in the UI. Re-process the invoice
+after changing OCR settings.
 
 ### LLM failures
 

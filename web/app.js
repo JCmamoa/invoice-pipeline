@@ -216,7 +216,7 @@ function renderDetail(data) {
     ${invoice.error ? `<p class="small" style="color:var(--red)">${escapeHtml(invoice.error)}</p>` : ""}
 
     <div class="section-title">Extraction</div>
-    <p class="small muted">Mode: ${escapeHtml(invoice.llm_mode || "—")} · confidence: ${escapeHtml(invoice.confidence ?? "—")} · attempts: ${escapeHtml(invoice.attempts ?? 0)}</p>
+    <p class="small muted">Mode: ${escapeHtml(invoice.llm_mode || "—")} · text: ${escapeHtml(invoice.text_source || "—")} · confidence: ${escapeHtml(invoice.confidence ?? "—")} · attempts: ${escapeHtml(invoice.attempts ?? 0)}</p>
     <pre class="notification-box" style="margin-top:8px;overflow:auto">${escapeHtml(JSON.stringify(extraction, null, 2))}</pre>
 
     ${

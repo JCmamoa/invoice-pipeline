@@ -42,6 +42,75 @@ def render_message(invoice: dict[str, Any], language: str = "en") -> str:
     )
 
 
+def _fmt_amount(invoice: dict[str, Any]) -> str:
+    amount = invoice.get("total_amount")
+    if amount is None:
+        return "n/a"
+    return f"{amount:,.2f}"
+
+
+def slack_payload(invoice: dict[str, Any], message: str) -> dict[str, Any]:
+    """Slack Block Kit payload with a plain-text fallback."""
+    currency = invoice.get("currency") or "BRL"
+    return {
+        "text": message,
+        "blocks": [
+            {
+                "type": "header",
+                "text": {"type": "plain_text", "text": "Invoice processed", "emoji": True},
+            },
+            {"type": "section", "text": {"type": "mrkdwn", "text": message}},
+            {
+                "type": "section",
+                "fields": [
+                    {
+                        "type": "mrkdwn",
+                        "text": f"*Supplier*\n{invoice.get('supplier_name') or 'unknown'}",
+                    },
+                    {"type": "mrkdwn", "text": f"*CNPJ*\n{invoice.get('supplier_cnpj') or 'n/a'}"},
+                    {"type": "mrkdwn", "text": f"*Total*\n{currency} {_fmt_amount(invoice)}"},
+                    {"type": "mrkdwn", "text": f"*Due date*\n{invoice.get('due_date') or 'n/a'}"},
+                ],
+            },
+        ],
+    }
+
+
+def teams_payload(invoice: dict[str, Any], message: str) -> dict[str, Any]:
+    """Microsoft Teams incoming-webhook MessageCard payload."""
+    currency = invoice.get("currency") or "BRL"
+    return {
+        "@type": "MessageCard",
+        "@context": "https://schema.org/extensions",
+        "themeColor": "2F5BFF",
+        "summary": "Invoice processed",
+        "title": "Invoice processed",
+        "text": message,
+        "sections": [
+            {
+                "facts": [
+                    {"name": "Supplier", "value": invoice.get("supplier_name") or "unknown"},
+                    {"name": "CNPJ", "value": invoice.get("supplier_cnpj") or "n/a"},
+                    {"name": "Total", "value": f"{currency} {_fmt_amount(invoice)}"},
+                    {"name": "Due date", "value": str(invoice.get("due_date") or "n/a")},
+                ]
+            }
+        ],
+    }
+
+
+def _post_webhook(url: str, payload: dict[str, Any], message: str) -> httpx.Response:
+    """POST the channel payload, retrying once with the minimal text body.
+
+    Some tenants still expose an older incoming webhook that only accepts
+    `{"text": ...}`; the retry keeps delivery working there.
+    """
+    response = httpx.post(url, json=payload, timeout=10)
+    if response.status_code in {400, 413, 415, 422}:
+        response = httpx.post(url, json={"text": message}, timeout=10)
+    return response
+
+
 def notify(settings: Settings, invoice: dict[str, Any]) -> dict[str, Any]:
     """Send the notification and always record the attempt in Postgres."""
     invoice_id = str(invoice["id"])
@@ -71,7 +140,12 @@ def notify(settings: Settings, invoice: dict[str, Any]) -> dict[str, Any]:
     status = "sent"
     error: str | None = None
     try:
-        response = httpx.post(webhook, json={"text": message}, timeout=10)
+        payload = (
+            slack_payload(invoice, message)
+            if channel == "slack"
+            else teams_payload(invoice, message)
+        )
+        response = _post_webhook(webhook, payload, message)
         if response.status_code >= 400:
             status = "failed"
             error = f"webhook returned {response.status_code}: {response.text[:200]}"

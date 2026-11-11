@@ -113,18 +113,23 @@ must be observable. WhatsApp requires a provider account and is out of scope.
 **Consequence:** the mock is not a delivery guarantee. In production, add an
 outbox/retry table around the webhook call.
 
-## ADR-009 — No OCR in Phase 0
+## ADR-009 — OCR is an optional, local fallback
 
-**Context:** many suppliers send scanned PDFs.
+**Context:** many suppliers send scanned PDFs, which have no text layer.
 
-**Decision:** a PDF without a text layer goes to `needs_review` with
-`no_text_layer`.
+**Decision:** when `OCR_ENABLED=true`, render up to `OCR_MAX_PAGES` pages with
+`pypdfium2` and run a local Tesseract installation. Digital invoices never touch
+OCR. If OCR is disabled or produces too little text, the invoice goes to
+`needs_review` with `no_text_layer`.
 
-**Why:** OCR adds a heavy dependency and a new failure surface. The deterministic
-demo and the main use case (digital invoices) do not need it.
+**Why:** OCR adds dependencies and a failure surface, so it must not affect the
+common path. Running it locally (no external document-AI service) keeps the
+zero-cost, self-hosted constraint and keeps invoice content on the host. The
+`text_source` column makes the difference visible in the audit trail.
 
-**Consequence:** scanned invoices are not automated yet. Add Tesseract or a
-document-AI service in Phase 1.
+**Consequence:** the image is larger and OCR is CPU-bound (roughly 1–3s per
+page). Low-quality scans can still fail; those invoices need a human or a
+better scan. A document-AI fallback remains future work.
 
 ## ADR-010 — Vanilla JS UI with no build step
 

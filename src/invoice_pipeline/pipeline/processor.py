@@ -12,7 +12,7 @@ from typing import Any
 
 from .. import metrics, notifier
 from ..config import Settings
-from ..extractor import LLMError, PdfError, extract, extract_text
+from ..extractor import LLMError, OcrError, PdfError, extract, extract_text, ocr_pdf
 from ..extractor.validate import validate_extraction
 from ..schemas import ExtractedInvoice, ValidatedInvoice
 from . import repository
@@ -35,6 +35,7 @@ def _review_for_pdf_error(
         extracted=extracted,
         validated=validated,
         llm_mode="none",
+        text_source="none",
     )
     repository.record_audit(invoice_id, "needs_review", {"reason": reason})
     metrics.INVOICES_PROCESSED.labels(status="needs_review").inc()
@@ -44,11 +45,41 @@ def _review_for_pdf_error(
     )
 
 
+def _read_text(data: bytes, settings: Settings) -> tuple[str, str]:
+    """Return the invoice text and where it came from.
+
+    Digital PDFs use the embedded text layer. When that layer is missing and
+    OCR is enabled, the pages are rendered and passed to Tesseract.
+    """
+    try:
+        return extract_text(data), "text_layer"
+    except PdfError as exc:
+        if exc.reason != "no_text_layer" or not settings.ocr_enabled:
+            raise
+
+    try:
+        text = ocr_pdf(
+            data,
+            language=settings.ocr_language,
+            dpi=settings.ocr_dpi,
+            max_pages=settings.ocr_max_pages,
+            min_chars=settings.ocr_min_chars,
+        )
+    except OcrError as exc:
+        metrics.OCR.labels(result=exc.reason).inc()
+        log.warning("ocr fallback failed", extra={"error": exc.reason})
+        raise PdfError("no_text_layer") from exc
+
+    metrics.OCR.labels(result="success").inc()
+    log.info("ocr fallback produced text")
+    return text, "ocr"
+
+
 def process_invoice(row: dict[str, Any], settings: Settings) -> str:
     invoice_id = str(row["id"])
     path = archived_file(settings, row["archived_path"])
     data = path.read_bytes()
-    text = extract_text(data)
+    text, text_source = _read_text(data, settings)
 
     started = time.perf_counter()
     extracted, mode = extract(text, settings)
@@ -62,12 +93,14 @@ def process_invoice(row: dict[str, Any], settings: Settings) -> str:
         extracted=extracted,
         validated=validated,
         llm_mode=mode,
+        text_source=text_source,
     )
     repository.record_audit(
         invoice_id,
         "extracted",
         {
             "mode": mode,
+            "text_source": text_source,
             "confidence": validated.confidence,
             "errors": validated.validation_errors,
             "warnings": validated.validation_warnings,

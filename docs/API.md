@@ -16,6 +16,9 @@ Interactive schema: `GET /docs` (Swagger UI) and `GET /openapi.json`.
 | request timeout | uvicorn default | — |
 | accepted type | PDF magic `%PDF-` | fixed |
 
+Scanned PDFs without a text layer are OCRed when `OCR_ENABLED=true`; otherwise
+the invoice is accepted but ends in `needs_review` with `no_text_layer`.
+
 ## POST /api/invoices
 
 Upload a PDF. Multipart form field: `file`. Optional query parameter `source`
@@ -79,6 +82,7 @@ Returns the invoice, its notification history and the full audit trail.
     "due_date": "2026-12-15",
     "confidence": "0.950",
     "llm_mode": "mock",
+    "text_source": "text_layer",
     "validation_errors": [],
     "validation_warnings": [],
     "extraction": { "supplier_name": "Acme Supplies Ltda", "...": "..." },

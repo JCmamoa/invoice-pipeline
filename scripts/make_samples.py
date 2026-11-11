@@ -63,6 +63,34 @@ def write_pdf(path: Path, lines: list[str], font_size: int = 11) -> None:
     path.write_bytes(bytes(output))
 
 
+def write_scanned_pdf(path: Path, lines: list[str]) -> bool:
+    """Render text into an image-only PDF, simulating a scanned invoice.
+
+    Pillow is only needed to (re)generate the samples; the runtime image reads
+    the committed PDF. Returns False when Pillow is not installed.
+    """
+    try:
+        from PIL import Image, ImageDraw, ImageFont
+    except ImportError:
+        return False
+
+    width, height = 1240, 1754  # A4 at 150 dpi
+    image = Image.new("RGB", (width, height), "white")
+    draw = ImageDraw.Draw(image)
+    try:
+        font = ImageFont.truetype("DejaVuSans.ttf", 34)
+    except OSError:
+        font = ImageFont.load_default()
+
+    y = 140
+    for line in lines:
+        draw.text((110, y), line, fill="black", font=font)
+        y += 58
+
+    image.save(path, "PDF", resolution=150.0)
+    return True
+
+
 SAMPLES_DATA: dict[str, list[str]] = {
     "acme_invoice.pdf": [
         "ACME SUPPLIES LTDA",
@@ -107,6 +135,14 @@ SAMPLES_DATA: dict[str, list[str]] = {
         "Vencimento: 2026-12-20",
         "Total: R$ 99,90",
     ],
+    "scanned_invoice.pdf": [
+        "ACME SUPPLIES LTDA",
+        "Supplier: Acme Supplies Ltda",
+        "CNPJ: 11.222.333/0001-81",
+        "Invoice: INV-2026-0099",
+        "Due date: 2026-12-15",
+        "Total: R$ 1,234.56",
+    ],
 }
 
 
@@ -114,7 +150,12 @@ def main() -> None:
     SAMPLES.mkdir(parents=True, exist_ok=True)
     for name, lines in SAMPLES_DATA.items():
         path = SAMPLES / name
-        write_pdf(path, lines)
+        if name == "scanned_invoice.pdf":
+            if not write_scanned_pdf(path, lines):
+                print("skip samples/scanned_invoice.pdf (pillow is not installed)")
+                continue
+        else:
+            write_pdf(path, lines)
         print(f"wrote {path.relative_to(ROOT)} ({path.stat().st_size} bytes)")
 
 

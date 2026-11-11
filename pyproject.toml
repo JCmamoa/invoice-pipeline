@@ -16,6 +16,9 @@ dependencies = [
   "pydantic==2.10.3",
   "httpx==0.28.1",
   "pypdf==5.1.0",
+  "pypdfium2==4.30.0",
+  "pytesseract==0.3.13",
+  "pillow==11.0.0",
   "prometheus-client==0.21.1",
 ]
 

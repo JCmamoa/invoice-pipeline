@@ -26,7 +26,8 @@ a reason instead of being guessed.
 | **Crash recovery** | stale `processing` claims are requeued by a reaper |
 | **Audit trail** | every transition is recorded in `audit_log` |
 | **Original preserved** | the PDF is archived before extraction, downloadable from the UI |
-| **Notification** | Slack/Teams webhook, or a local mock feed when no webhook is set |
+| **Scanned PDFs** | optional local OCR (Tesseract + pypdfium2); disabled or low quality → `needs_review` |
+| **Notification** | Slack Block Kit / Teams MessageCard webhooks, or a local mock feed when no webhook is set |
 | **Observability** | Prometheus metrics from both API and worker |
 
 ---
@@ -86,6 +87,7 @@ them up within a couple of seconds:
 | `globex_invoice.pdf` | `processed` — USD 4,250.00, Portuguese labels |
 | `missing_due_date.pdf` | `needs_review` — `missing_due_date` |
 | `invalid_cnpj.pdf` | `needs_review` — `invalid_cnpj` |
+| `scanned_invoice.pdf` | `processed` via OCR (`text_source=ocr`), or `needs_review` when OCR is off |
 
 With `make` installed:
 
@@ -208,9 +210,9 @@ TEST_DATABASE_URL='postgresql://invoice:invoice@localhost:5434/invoice' \
 ```
 
 The unit suite covers money/date/CNPJ parsing, strict validation, the
-deterministic extractor against the four sample PDFs, and notification
-templates. CI runs lint, unit tests, the Postgres integration test and a Docker
-build.
+deterministic extractor against the sample PDFs, OCR (skipped when Tesseract is
+not installed), notification templates and webhook payloads. CI runs lint, unit
+tests, the Postgres integration test and a Docker build.
 
 ---
 
@@ -222,8 +224,10 @@ build.
   demo.
 - **Postgres has no automatic retention.** Plan partition rotation for
   `invoices`/`audit_log` in production.
-- **Scanned PDFs** have no text layer; they go to `needs_review` with
-  `no_text_layer`. OCR is intentionally out of scope for Phase 0.
+- **Scanned PDFs** are handled by the optional OCR fallback (`OCR_ENABLED=true`,
+  Tesseract in the image). If OCR is disabled, produces too little text or the
+  language model is missing, the invoice goes to `needs_review` with
+  `no_text_layer` instead of guessing.
 - **`value_sum` equivalent:** totals are stored per invoice; there is no
   aggregation layer yet.
 
@@ -235,9 +239,9 @@ Design rationale: [`docs/DECISIONS.md`](docs/DECISIONS.md).
 ## Next steps
 
 1. Tenant/API-key authentication and per-tenant quotas.
-2. OCR fallback for scanned invoices.
-3. Outbox pattern so a notification is retried even if the API process dies
+2. Outbox pattern so a notification is retried even if the API process dies
    between the commit and the webhook call.
-4. ERP export (CSV/webhook) and a reconciliation report.
-5. OpenTelemetry tracing across API → queue → worker → webhook.
-6. Retention/partitioning for `invoices`, `audit_log` and the archive.
+3. ERP export (CSV/webhook) and a reconciliation report.
+4. OpenTelemetry tracing across API → queue → worker → webhook.
+5. Retention/partitioning for `invoices`, `audit_log` and the archive.
+6. Better OCR: deskew/crop, per-field confidence and a document-AI fallback.

@@ -80,6 +80,7 @@ def save_result(
     extracted: ExtractedInvoice,
     validated: ValidatedInvoice,
     llm_mode: str,
+    text_source: str | None = None,
 ) -> None:
     with get_pool().connection() as conn:
         conn.execute(
@@ -96,6 +97,7 @@ def save_result(
                    validation_errors = %s,
                    validation_warnings = %s,
                    llm_mode = %s,
+                   text_source = %s,
                    error = NULL,
                    processed_at = now(),
                    updated_at = now()
@@ -113,6 +115,7 @@ def save_result(
                 Jsonb(validated.validation_errors),
                 Jsonb(validated.validation_warnings),
                 llm_mode,
+                text_source,
                 invoice_id,
             ),
         )

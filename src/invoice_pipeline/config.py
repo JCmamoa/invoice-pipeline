@@ -72,6 +72,11 @@ class Settings:
     max_pdf_bytes: int
     demo_mode: bool
     public_base_url: str
+    ocr_enabled: bool
+    ocr_language: str
+    ocr_dpi: int
+    ocr_max_pages: int
+    ocr_min_chars: int
     imap_enabled: bool
     imap_host: str
     imap_port: int
@@ -112,6 +117,11 @@ class Settings:
             max_pdf_bytes=_env_int("MAX_PDF_BYTES", 15 * 1024 * 1024),
             demo_mode=_env_bool("DEMO_MODE", True),
             public_base_url=_env("PUBLIC_BASE_URL", "http://localhost:8000").rstrip("/"),
+            ocr_enabled=_env_bool("OCR_ENABLED", True),
+            ocr_language=_env("OCR_LANG", "eng"),
+            ocr_dpi=_env_int("OCR_DPI", 200),
+            ocr_max_pages=_env_int("OCR_MAX_PAGES", 5),
+            ocr_min_chars=_env_int("OCR_MIN_CHARS", 25),
             imap_enabled=_env_bool("IMAP_ENABLED", False),
             imap_host=_env("IMAP_HOST"),
             imap_port=_env_int("IMAP_PORT", 993),

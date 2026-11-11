@@ -86,10 +86,12 @@ Then:
 
 1. Read the archived PDF.
 2. Extract the text layer with `pypdf`.
-3. Call the extractor (LLM or mock) with the strict prompt.
-4. Validate the returned fields deterministically.
-5. Persist `processed` or `needs_review`.
-6. Notify when `processed`.
+3. If there is no text layer and OCR is enabled, render the first pages with
+   `pypdfium2` and read them with Tesseract (`text_source=ocr`).
+4. Call the extractor (LLM or mock) with the strict prompt.
+5. Validate the returned fields deterministically.
+6. Persist `processed` or `needs_review`.
+7. Notify when `processed`.
 
 ### 3. Statuses
 
@@ -150,6 +152,27 @@ transient error (retried); a valid response with missing fields is a
 The deterministic mock implements the same contract with label-based regular
 expressions, so the demo and the tests run offline.
 
+## OCR fallback
+
+Digital invoices are read from their embedded text layer: exact and fast.
+Scanned invoices have no such layer, so the worker optionally renders pages and
+runs Tesseract locally:
+
+| Setting | Default | Effect |
+|---|---|---|
+| `OCR_ENABLED` | `true` | turn the fallback on or off |
+| `OCR_LANG` | `eng` | Tesseract languages, e.g. `eng+por` |
+| `OCR_DPI` | `200` | render resolution |
+| `OCR_MAX_PAGES` | `5` | bound on CPU per document |
+| `OCR_MIN_CHARS` | `25` | below this the result is discarded |
+
+The OCR text then follows the same extraction and validation path. The source
+is persisted in `invoices.text_source` (`text_layer`, `ocr` or `none`) and in
+the `extracted` audit entry, so a reviewer can tell how a field was read.
+
+If OCR is disabled, unavailable or returns too little text, the invoice goes to
+`needs_review` with `no_text_layer`. OCR failures never fabricate data.
+
 ## Validation
 
 Validation is intentionally independent from the LLM:
@@ -170,10 +193,14 @@ processing.
 `processed` invoices produce one notification. The channel is selected at
 runtime:
 
-1. `SLACK_WEBHOOK_URL` → Slack incoming webhook.
-2. `TEAMS_WEBHOOK_URL` → Teams webhook.
+1. `SLACK_WEBHOOK_URL` → Slack incoming webhook, Block Kit payload with a
+   `text` fallback.
+2. `TEAMS_WEBHOOK_URL` → Teams incoming webhook, `MessageCard` payload.
 3. Otherwise → `mock`: the message is stored in `notifications` and shown in the
    UI feed.
+
+If the channel rejects the rich payload (`400/413/415/422`), the client retries
+once with `{"text": message}` so older incoming webhooks keep working.
 
 The notification row is written in all cases, including webhook failures, so the
 audit trail is complete. Webhook failure does **not** roll back the invoice:
@@ -189,6 +216,7 @@ Both processes export Prometheus metrics:
 | `invoice_processed_total{status}` | terminal outcomes |
 | `invoice_extraction_duration_seconds{mode}` | extraction latency |
 | `invoice_notifications_total{channel,status}` | delivery results |
+| `invoice_ocr_total{result}` | OCR fallback outcomes |
 | `invoice_queue_depth` | queued + processing |
 | `invoice_api_requests_total{method,route,status}` | API traffic |
 

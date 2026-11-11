@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS invoices (
     validation_errors   JSONB       NOT NULL DEFAULT '[]'::jsonb,
     validation_warnings JSONB       NOT NULL DEFAULT '[]'::jsonb,
     llm_mode            TEXT,
+    text_source         TEXT,
     archived_path       TEXT,
     attempts            INTEGER     NOT NULL DEFAULT 0,
     next_attempt_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -38,6 +39,9 @@ CREATE TABLE IF NOT EXISTS invoices (
         status IN ('queued', 'processing', 'processed', 'needs_review', 'failed')
     )
 );
+
+-- Existing installations: keep the schema forward-compatible.
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS text_source TEXT;
 
 CREATE INDEX IF NOT EXISTS invoices_status_idx
     ON invoices (status, next_attempt_at, created_at);
