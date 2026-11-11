@@ -138,7 +138,7 @@ interval 2s:
 |---|---|
 | End-to-end, digital invoice | **2.03 – 2.18 s** (includes the 2s queue poll) |
 | End-to-end, scanned invoice (OCR) | **4.03 s** |
-| Extraction + validation (core logic) | **~3.5 ms** per invoice |
+| Extraction + validation (core logic, mock extractor) | **~3.5 ms** per invoice |
 | Invoices processed / routed to review | 3 / 2 (the samples are seeded to exercise both paths) |
 | Fabricated fields | 0 (missing values are `NULL` + reason) |
 
